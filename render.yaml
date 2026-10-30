@@ -1,6 +1,6 @@
-# Render.com blueprint for the EventBook API.
-# Create a "Blueprint" in Render, point it at this repo and set the secret
-# env vars in the dashboard (they're marked sync: false below).
+# Render.com blueprint for the EventBook API (must live at the repo root).
+# Render -> New -> Blueprint -> pick this repo. Set DATABASE_URL and
+# FRONTEND_ORIGIN in the dashboard when prompted (sync: false below).
 services:
   - type: web
     name: eventbook-api
@@ -21,7 +21,7 @@ services:
         value: none
       - key: DATABASE_URL
         sync: false
-      - key: JWT_SECRET_KEY
-        generateValue: true
       - key: FRONTEND_ORIGIN
         sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true

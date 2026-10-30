@@ -19,6 +19,10 @@ engine = create_engine(
     pool_pre_ping=True,  # Supabase's pooler drops idle connections; this re-checks them
     pool_size=5,
     max_overflow=5,
+    # Supabase's transaction pooler (port 6543, PgBouncer) can't track
+    # server-side prepared statements, so turn them off. Costs almost nothing
+    # and means either pooler URL just works.
+    connect_args={"prepare_threshold": None},
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)

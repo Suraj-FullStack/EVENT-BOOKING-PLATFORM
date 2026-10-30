@@ -54,7 +54,7 @@ eventbook/
 │   ├── scripts/seed.py        # idempotent sample data
 │   ├── tests/                 # pytest suite (25 tests)
 │   ├── requirements.txt
-│   ├── render.yaml / Procfile # backend hosting config
+│   ├── Procfile / .python-version
 │   └── .env.example
 ├── frontend/
 │   ├── src/app/               # routes (App Router)
@@ -67,7 +67,7 @@ eventbook/
 │   ├── src/context/           # AuthContext (current user)
 │   ├── src/lib/               # api client, types, date helpers, useFetch hook
 │   └── .env.example
-├── vercel.json                # lets Vercel build frontend/ from the repo root
+├── render.yaml                # Render blueprint for the API (must be at repo root)
 ├── .gitignore
 └── README.md
 ```
@@ -226,35 +226,50 @@ Already created in step 4.2. Nothing else to do - migrations run from the backen
 
 ### 8.2 Backend → Render (free tier)
 
-`backend/render.yaml` is a ready-made blueprint, or configure a Web Service by hand:
+**Option A - Blueprint (fastest).** Render → *New* → *Blueprint* → select this repo. It reads `render.yaml` from the repo root, creates the `eventbook-api` service and prompts you for the two values it can't guess:
+
+```
+DATABASE_URL     = <Supabase pooler URI from step 4.2>
+FRONTEND_ORIGIN  = https://<your-app>.vercel.app     (you can fill this in after step 8.3)
+```
+
+`JWT_SECRET_KEY` is auto-generated; `ENVIRONMENT`, `COOKIE_SECURE`, `COOKIE_SAMESITE` are preset for production.
+
+**Option B - manual Web Service.** Same thing by hand:
 
 | Setting | Value |
 | --- | --- |
 | Root directory | `backend` |
-| Runtime | Python |
+| Runtime | Python 3 |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Health check | `/health` |
+| Health check path | `/health` |
+| Env vars | `DATABASE_URL`, `JWT_SECRET_KEY`, `FRONTEND_ORIGIN`, `ENVIRONMENT=production`, `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none` |
 
-Environment variables:
+`alembic upgrade head` in the start command applies the schema on every deploy, so a fresh Supabase database is ready after the first boot. Check `https://<your-api>.onrender.com/health` returns `{"status":"ok"}` and `/docs` opens.
 
+**Seeding production** - run once from your PC with the production URL:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+$env:DATABASE_URL = "<Supabase pooler URI>"
+$env:SEED_ADMIN_PASSWORD = "<a real password>"
+$env:SEED_USER_PASSWORD  = "<a real password>"
+python -m scripts.seed
 ```
-DATABASE_URL        = <Supabase session-pooler URI>
-JWT_SECRET_KEY      = <long random string>
-FRONTEND_ORIGIN     = https://<your-app>.vercel.app      (comma-separate several if needed)
-ENVIRONMENT         = production
-COOKIE_SECURE       = true
-COOKIE_SAMESITE     = none
-```
 
-`alembic upgrade head` in the start command means the schema is applied on every deploy. Seed once from your machine with the production `DATABASE_URL` in `.env` and `python -m scripts.seed` (change `SEED_*_PASSWORD` first!). Railway / Fly.io work identically with the same start command (`Procfile` is included).
+Railway / Fly.io / Koyeb work identically - the `Procfile` has the same start command. Either Supabase pooler URL (session 5432 or transaction 6543) works; prepared statements are disabled for PgBouncer compatibility.
 
 ### 8.3 Frontend → Vercel
 
-1. Import the GitHub repo in Vercel.
-2. Either set **Root Directory** to `frontend` *or* leave it at the repo root - `vercel.json` already points Vercel at `frontend/`. Framework preset: Next.js.
-3. Environment variable: `NEXT_PUBLIC_API_BASE_URL = https://<your-api>.onrender.com` (no trailing slash).
-4. Deploy. Then copy the Vercel URL into the API's `FRONTEND_ORIGIN` and redeploy the API.
+1. Vercel → *Add New* → *Project* → import the GitHub repo.
+2. **Root Directory: `frontend`** (click *Edit* next to it). Framework preset auto-detects Next.js; leave build/output defaults alone.
+3. Environment variable: `NEXT_PUBLIC_API_BASE_URL` = `https://<your-api>.onrender.com` (no trailing slash).
+4. Deploy. Copy the resulting `https://<your-app>.vercel.app` URL.
+5. Back in Render, set `FRONTEND_ORIGIN` to that URL (add a custom domain here too if you use one, comma-separated). Render redeploys automatically.
+
+Open the Vercel URL, log in with a seed account, book something. If the login appears to succeed but you're immediately logged out again, `FRONTEND_ORIGIN` doesn't match the exact Vercel origin or `COOKIE_SAMESITE`/`COOKIE_SECURE` aren't `none`/`true`.
 
 ### 8.4 Why the cookie settings matter
 
